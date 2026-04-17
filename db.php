@@ -3,7 +3,7 @@ $host = getenv('DB_HOST') ?: '127.0.0.1';
 $db = getenv('DB_NAME');
 $user = getenv('DB_USER');
 $pass = getenv('DB_PASS');
-$port = getenv('DB_PORT') ?: '3306';
+$port = getenv('DB_PORT') ?: '16169';
 
 try {
     // We explicitly include the port 3306 for the internal network
