@@ -18,3 +18,23 @@ try {
     ]);
     exit;
 }
+// EMERGENCY TABLE CREATION
+try {
+    $sql = "CREATE TABLE IF NOT EXISTS profiles (
+        id CHAR(36) PRIMARY KEY,
+        name VARCHAR(255) UNIQUE NOT NULL,
+        gender VARCHAR(20),
+        gender_probability DECIMAL(5,2),
+        sample_size INT,
+        age INT,
+        age_group VARCHAR(20),
+        country_id VARCHAR(10),
+        country_probability DECIMAL(5,2),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )";
+    $conn->exec($sql);
+    // Optional: echo "Table created successfully!";
+} catch (PDOException $e) {
+    // This will help us see if the API can talk to the DB even if TablePlus can't
+    error_log("Table creation failed: " . $e->getMessage());
+}
