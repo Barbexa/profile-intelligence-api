@@ -12,6 +12,9 @@ try {
 } catch (PDOException $e) {
     header('Content-Type: application/json');
     // For debugging: echo $e->getMessage(); 
-    echo json_encode(["status" => "error", "message" => "Database Connection Failed"]);
+    echo json_encode([
+        "status" => "error",
+        "message" => $e->getMessage()
+    ]);
     exit;
 }
