@@ -1,5 +1,5 @@
 <?php
-$host = getenv('DB_HOST') ?: 'profile_db'; // Default to localhost if DB_HOST is not set
+$host = getenv('DB_HOST') ?: '92.113.148.120'; // Default to localhost if DB_HOST is not set
 $db = getenv('DB_NAME');
 $user = getenv('DB_USER');
 $pass = getenv('DB_PASS');
