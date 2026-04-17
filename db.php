@@ -1,9 +1,9 @@
 <?php
-$host = getenv('DB_HOST');
+$host = getenv('DB_HOST') ?: 'profile_db'; // Default to localhost if DB_HOST is not set
 $db = getenv('DB_NAME');
 $user = getenv('DB_USER');
 $pass = getenv('DB_PASS');
-$port = getenv('DB_PORT');
+$port = getenv('DB_PORT') ?: 3306; // Default to 3306 if DB_PORT is not set
 
 try {
     // We explicitly include the port 3306 for the internal network
