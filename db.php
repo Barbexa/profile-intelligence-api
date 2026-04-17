@@ -1,27 +1,20 @@
 <?php
-// Detect Heroku JawsDB URL
-$url = getenv('JAWSDB_URL');
-
-if ($url) {
-    // We are on Heroku - Parse the connection string
-    $dbparts = parse_url($url);
-    $host = $dbparts['host'];
-    $user = $dbparts['user'];
-    $pass = $dbparts['pass'];
-    $db = ltrim($dbparts['path'], '/');
-} else {
-    // We are on Localhost (XAMPP)
-    $host = '127.0.0.1';
-    $db = 'profile_db';
-    $user = 'root';
-    $pass = '';
-}
+$host = getenv('DB_HOST') ?: 'mysql';
+$db = getenv('DB_NAME');
+$user = getenv('DB_USER');
+$pass = getenv('DB_PASSWORD');
+$port = getenv('DB_PORT') ?: '3306';
 
 try {
-    $conn = new PDO("mysql:host=$host;dbname=$db;charset=utf8mb4", $user, $pass);
+    // We explicitly include the port 3306 for the internal network
+    $conn = new PDO("mysql:host=$host;port=$port;dbname=$db;charset=utf8mb4", $user, $pass);
     $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 } catch (PDOException $e) {
     header('Content-Type: application/json');
-    echo json_encode(["status" => "error", "message" => "DB Error: " . $e->getMessage()]);
+    echo json_encode([
+        "status" => "error",
+        "message" => "Connection Failed: " . $e->getMessage(),
+        "debug_info" => "Connecting to $host on port $port"
+    ]);
     exit;
 }
