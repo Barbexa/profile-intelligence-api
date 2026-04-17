@@ -1,9 +1,9 @@
 <?php
-$host = getenv('DB_HOST') ?: 'mysql';
+$host = getenv('DB_HOST') ?: 'db.pxxl.pro';
 $db = getenv('DB_NAME');
 $user = getenv('DB_USER');
-$pass = getenv('DB_PASSWORD');
-$port = getenv('DB_PORT') ?: '3306';
+$pass = getenv('DB_PASS');
+$port = getenv('DB_PORT') ?: '16169';
 
 try {
     // We explicitly include the port 3306 for the internal network
