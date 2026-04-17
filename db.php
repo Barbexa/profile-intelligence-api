@@ -1,10 +1,9 @@
 <?php
-$host = getenv('DB_HOST') ?: '92.113.148.120'; // Default to localhost if DB_HOST is not set
-$db = getenv('DB_NAME');
-$user = getenv('DB_USER');
-$pass = getenv('DB_PASS');
-$port = getenv('DB_PORT') ?: 16169; // Default to 3306 if DB_PORT is not set
-
+$host = '127.0.0.1'; // The universal internal address
+$port = '3306';      // The standard internal MySQL port
+$db = 'pxxldb_mo3adgw19670dd6';
+$user = 'pxxluser_mo3adgw1f5bdc16';
+$pass = '977871dc9fac61038fbfd4705073ddd6a9c2e556b0c2bdf10dee595c68f88d46';
 try {
     // We explicitly include the port 3306 for the internal network
 
