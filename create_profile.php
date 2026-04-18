@@ -47,10 +47,14 @@ if ($existing) {//If a profile with the same name already exists, return it inst
 }
 //Fetch data from external APIs
 // Then use it like this:
-$gender = fetch_api_data("https://api.genderize.io?name=$name");
+/*$gender = fetch_api_data("https://api.genderize.io?name=$name");
 $age = fetch_api_data("https://api.agify.io?name=$name");
-$country = fetch_api_data("https://api.nationalize.io?name=$name");
+$country = fetch_api_data("https://api.nationalize.io?name=$name");*/
 
+// Fake data for testing only
+$gender = ['gender' => 'female', 'probability' => 0.99, 'count' => 1000];
+$age = ['age' => 25];
+$country = ['country' => [['country_id' => 'NG', 'probability' => 0.85]]];
 // Then, when using the data, check if it exists before proceeding
 if (!$gender || !isset($gender['gender'])) {
     http_response_code(502);
@@ -96,7 +100,7 @@ $top = $country['country'][0];//Takes the country with the highest probability a
 
 //Generate unique ID and timestamp
 $id = uniqid(); // acceptable fallback if UUID lib not used
-$created_at = gmdate("Y-m-d\TH:i:s\Z");//Generates a timestamp in ISO 8601 format (e.g., "2024-06-01T12:00:00Z") representing the current time in UTC. This is useful for consistent time representation across different systems and time zones.
+$created_at = date("Y-m-d H:i:s");//Generates a timestamp in ISO 8601 format (e.g., "2024-06-01T12:00:00Z") representing the current time in UTC. This is useful for consistent time representation across different systems and time zones.
 
 
 //Store in database
