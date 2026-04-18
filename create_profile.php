@@ -1,6 +1,19 @@
 <?php
+require "db.php"; // This uses your getenv variables
+
 $data = json_decode(file_get_contents("php://input"), true);//puts json in php array
 // ("php://input")This reads the "raw" data sent in the request body (since APIs send JSON, not standard form data).
+
+function fetch_api_data($url)
+{
+    $ch = curl_init();
+    curl_setopt($ch, CURLOPT_URL, $url);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 5); // Don't wait longer than 5 seconds
+    $response = curl_exec($ch);
+    curl_close($ch);
+    return json_decode($response, true);
+}
 
 if (!isset($data['name']) || empty($data['name'])) {//if name is empty or not set, return 400 error 
     http_response_code(400);
@@ -24,9 +37,10 @@ if ($existing) {//If a profile with the same name already exists, return it inst
     exit;//Stopping execution here if profile exists, returning existing data instead of creating a new one. This ensures idempotency.
 }
 //Fetch data from external APIs
-$gender = json_decode(file_get_contents("https://api.genderize.io?name=$name"), true);//Calls API to predict gender from name.
-$age = json_decode(file_get_contents("https://api.agify.io?name=$name"), true);//Calls API to predict age from name.
-$country = json_decode(file_get_contents("https://api.nationalize.io?name=$name"), true);//Calls API to predict country from name.
+// Then use it like this:
+$gender = fetch_api_data("https://api.genderize.io?name=$name");
+$age = fetch_api_data("https://api.agify.io?name=$name");
+$country = fetch_api_data("https://api.nationalize.io?name=$name");
 
 //Validate API responses
 // Genderize
@@ -106,4 +120,3 @@ echo json_encode([
     ]
 ]);
 exit;
-?>
