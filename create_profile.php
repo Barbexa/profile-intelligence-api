@@ -1,4 +1,7 @@
 <?php
+ini_set('display_errors', 1);
+error_reporting(E_ALL);
+
 require "db.php"; // This uses your getenv variables
 
 $data = json_decode(file_get_contents("php://input"), true);//puts json in php array
@@ -9,11 +12,17 @@ function fetch_api_data($url)
     $ch = curl_init();
     curl_setopt($ch, CURLOPT_URL, $url);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_TIMEOUT, 5); // Don't wait longer than 5 seconds
+    curl_setopt($ch, CURLOPT_TIMEOUT, 5); // 5 second limit
     $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
     curl_close($ch);
+
+    if ($httpCode !== 200 || !$response)
+        return null;
     return json_decode($response, true);
 }
+
+
 
 if (!isset($data['name']) || empty($data['name'])) {//if name is empty or not set, return 400 error 
     http_response_code(400);
@@ -41,6 +50,13 @@ if ($existing) {//If a profile with the same name already exists, return it inst
 $gender = fetch_api_data("https://api.genderize.io?name=$name");
 $age = fetch_api_data("https://api.agify.io?name=$name");
 $country = fetch_api_data("https://api.nationalize.io?name=$name");
+
+// Then, when using the data, check if it exists before proceeding
+if (!$gender || !isset($gender['gender'])) {
+    http_response_code(502);
+    echo json_encode(["status" => "error", "message" => "External API failed"]);
+    exit;
+}
 
 //Validate API responses
 // Genderize
