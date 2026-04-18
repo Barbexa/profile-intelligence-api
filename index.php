@@ -5,7 +5,11 @@ header("Access-Control-Allow-Origin: *");
 require "db.php";
 
 $method = $_SERVER['REQUEST_METHOD'];
-$uri = $_SERVER['REQUEST_URI'];
+$uri = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
+
+// remove your project folder from the URL
+$basePath = '/profile-intelligence-api';
+$uri = str_replace($basePath, '', $uri);
 
 if ($method === "POST" && strpos($uri, "/api/profiles") !== false) {
     require "create_profile.php";
