@@ -1,6 +1,6 @@
 <?php
-$host = 'profile_db'; // The universal internal address
-$port = '3306';      // The standard internal MySQL port
+$host = 'db.pxxl.pro'; // The universal internal address
+$port = '16169';      // The standard internal MySQL port
 $db = 'pxxldb_mo3adgw19670dd6';
 $user = 'pxxluser_mo3adgw1f5bdc16';
 $pass = '977871dc9fac61038fbfd4705073ddd6a9c2e556b0c2bdf10dee595c68f88d46';
