@@ -22,5 +22,5 @@ if (stripos($uri, "/api/profiles") !== false) {
     }
 } else {
     http_response_code(404);
-    echo json_encode(["status" => "error", "message" => "Route not found. Endpoint is /api/profiles", "debug_uri" => $ur]);
+    echo json_encode(["status" => "error", "message" => "Route not found. Endpoint is /api/profiles", "debug_uri" => $uri]);
 }

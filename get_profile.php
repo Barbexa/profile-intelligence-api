@@ -20,5 +20,16 @@ if (!$profile) {
 
 echo json_encode([
     "status" => "success",
-    "data" => $profile
+    "data" => [
+        "id" => $profile['id'],
+        "name" => $profile['name'],
+        "gender" => $profile['gender'],
+        "gender_probability" => (float) $profile['gender_probability'],
+        "sample_size" => (int) $profile['sample_size'],
+        "age" => (int) $profile['age'],
+        "age_group" => $profile['age_group'],
+        "country_id" => $profile['country_id'],
+        "country_probability" => (float) $profile['country_probability'],
+        "created_at" => $profile['created_at']
+    ]
 ]);

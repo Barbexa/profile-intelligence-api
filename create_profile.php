@@ -88,4 +88,22 @@ $stmt->execute([
     $top['probability'],
     $created_at
 ]);
+
+http_response_code(201); // Task says 201 for success
+echo json_encode([
+    "status" => "success",
+    "data" => [
+        "id" => $id,
+        "name" => $name,
+        "gender" => $gender['gender'],
+        "gender_probability" => (float) $gender['probability'],
+        "sample_size" => (int) $gender['count'],
+        "age" => (int) $age['age'],
+        "age_group" => $group,
+        "country_id" => $top['country_id'],
+        "country_probability" => (float) $top['probability'],
+        "created_at" => $created_at
+    ]
+]);
+exit;
 ?>
