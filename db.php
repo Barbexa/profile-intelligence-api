@@ -40,4 +40,11 @@ try {
     // This will help us see if the API can talk to the DB even if TablePlus can't
     error_log("Table creation failed: " . $e->getMessage());
 }
+
+http_response_code(500);
+echo json_encode([
+    "status" => "error",
+    "message" => "Database connection failed"
+]);
+exit;
 ?>
