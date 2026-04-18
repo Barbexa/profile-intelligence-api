@@ -41,10 +41,4 @@ try {
     error_log("Table creation failed: " . $e->getMessage());
 }
 
-http_response_code(500);
-echo json_encode([
-    "status" => "error",
-    "message" => "Database connection failed"
-]);
-exit;
 ?>
