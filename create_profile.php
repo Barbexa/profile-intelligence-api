@@ -6,7 +6,13 @@ require "db.php"; // This uses your getenv variables
 
 $data = json_decode(file_get_contents("php://input"), true);//puts json in php array
 // ("php://input")This reads the "raw" data sent in the request body (since APIs send JSON, not standard form data).
-
+function generate_uuidv4()
+{
+    $data = random_bytes(16);
+    $data[6] = chr(ord($data[6]) & 0x0f | 0x40); // Set version to 0100
+    $data[8] = chr(ord($data[8]) & 0x3f | 0x80); // Set bits 6-7 to 10
+    return vsprintf('%s%s-%s-%s-%s-%s%s%s', str_split(bin2hex($data), 4));
+}
 function fetch_api_data($url)
 {
     $ch = curl_init();
@@ -100,7 +106,8 @@ $top = $country['country'][0];//Takes the country with the highest probability a
 
 //Generate unique ID and timestamp
 $id = uniqid(); // acceptable fallback if UUID lib not used
-$created_at = date("Y-m-d H:i:s");//Generates a timestamp in ISO 8601 format (e.g., "2024-06-01T12:00:00Z") representing the current time in UTC. This is useful for consistent time representation across different systems and time zones.
+// Generate the correct ISO 8601 format: 2026-04-19T00:18:28Z
+$created_at = gmdate("Y-m-d\TH:i:s\Z");//Generates a timestamp in ISO 8601 format (e.g., "2024-06-01T12:00:00Z") representing the current time in UTC. This is useful for consistent time representation across different systems and time zones.
 
 
 //Store in database
