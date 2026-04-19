@@ -47,14 +47,14 @@ if ($existing) {//If a profile with the same name already exists, return it inst
 }
 //Fetch data from external APIs
 // Then use it like this:
-/*$gender = fetch_api_data("https://api.genderize.io?name=$name");
-$age = fetch_api_data("https://api.agify.io?name=$name");
+$gender = fetch_api_data("https://api.genderize.io?name=$name");
+$age = fetch_api_data("https://api.agify.io?name=$name");/*
 $country = fetch_api_data("https://api.nationalize.io?name=$name");*/
 
 // Fake data for testing only
 $gender = ['gender' => 'female', 'probability' => 0.99, 'count' => 1000];
 $age = ['age' => 25];
-$country = ['country' => [['country_id' => 'NG', 'probability' => 0.85]]];
+/*$country = ['country' => [['country_id' => 'NG', 'probability' => 0.85]]];*/
 // Then, when using the data, check if it exists before proceeding
 if (!$gender || !isset($gender['gender'])) {
     http_response_code(502);
