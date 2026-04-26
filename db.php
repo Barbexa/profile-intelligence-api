@@ -1,14 +1,16 @@
 <?php
-$host = 'db.pxxl.pro'; // The universal internal address
-$port = '16169';      // The standard internal MySQL port
-$db = 'pxxldb_mo3adgw19670dd6';
-$user = 'pxxluser_mo3adgw1f5bdc16';
-$pass = '977871dc9fac61038fbfd4705073ddd6a9c2e556b0c2bdf10dee595c68f88d46';
+$host = getenv('DB_HOST'); // The universal internal address
+$port = getenv('DB_PORT');      // The standard internal MySQL port
+$db = getenv('DB_NAME');
+$user = getenv('DB_USER');
+$pass = getenv('DB_PASS');
 try {
-    // We explicitly include the port 3306 for the internal network
-
+    // Notice how we add ;port=$port into the string
     $conn = new PDO("mysql:host=$host;port=$port;dbname=$db;charset=utf8mb4", $user, $pass);
+
     $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+    $conn->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
+
 } catch (PDOException $e) {
     header('Content-Type: application/json');
     echo json_encode([
@@ -23,16 +25,15 @@ try {
 // EMERGENCY TABLE CREATION
 try {
     $sql = "CREATE TABLE IF NOT EXISTS profiles (
-        id CHAR(36) PRIMARY KEY,
-        name VARCHAR(255) UNIQUE NOT NULL,
-        gender VARCHAR(20),
-        gender_probability DECIMAL(5,2),
-        sample_size INT,
+        id CHAR(36) PRIMARY KEY, -- Using UUID v7 as requested
+        name VARCHAR(255) NOT NULL,
+        gender VARCHAR(50),
+        probability FLOAT, -- TRD uses 'probability'
         age INT,
-        age_group VARCHAR(20),
         country_id VARCHAR(10),
-        country_probability DECIMAL(5,2),
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        is_confident BOOLEAN DEFAULT FALSE, -- Required by TRD
+        sample_size INT,
+        processed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP -- TRD uses 'processed_at'
     )";
     $conn->exec($sql);
     // Optional: echo "Table created successfully!";
