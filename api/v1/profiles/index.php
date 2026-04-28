@@ -136,6 +136,7 @@ switch ($method) {
                     "processed_at" => $profile['processed_at']
                 ]
             ]);
+            break;
         } else {
             // --- PROFESSIONAL PAGINATION & FILTERING ---
 
