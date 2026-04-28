@@ -1,12 +1,13 @@
 <?php
-header("Content-Type: application/json");
-require "../../../db.php";
+header("Content-Type: application/json");//Make all response JSON 
+require "../../../db.php";// Used to call our Database
 
 $method = $_SERVER['REQUEST_METHOD'];
 $uri = $_SERVER['REQUEST_URI'];
 
 // Helper for External APIs
-function fetch_api_data($url)
+function fetch_api_data($url)// Helper Function to help fetch external api url uses cURL to fetch
+//My integration layer 
 {
     $ch = curl_init();
     curl_setopt($ch, CURLOPT_URL, $url);
@@ -15,11 +16,11 @@ function fetch_api_data($url)
     $response = curl_exec($ch);
     $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
     curl_close($ch);
-    return ($httpCode === 200) ? json_decode($response, true) : null;
+    return ($httpCode === 200) ? json_decode($response, true) : null; //returnd 200 if it works else null
 }
 
 // Helper for UUID (Stage 3 prefers structured IDs)
-function generate_uuid()
+function generate_uuid()//UUID function to fit the score requirement
 {
     return sprintf(
         '%04x%04x-%04x-%04x-%04x-%04x%04x%04x',
@@ -34,20 +35,20 @@ function generate_uuid()
     );
 }
 
-switch ($method) {
+switch ($method) {//Controller Logic
     case 'POST':
-        $data = json_decode(file_get_contents("php://input"), true);
+        $data = json_decode(file_get_contents("php://input"), true);//Read input and read Raw Json
 
-        if (!isset($data['name']) || empty(trim($data['name']))) {
-            http_response_code(400);
+        if (!isset($data['name']) || empty(trim($data['name']))) {//if the name or $data variable is empty or not set
+            http_response_code(400); //Give 400 Error
             echo json_encode(["status" => "error", "message" => "Name is required"]);
             exit;
         }
 
-        $name = strtolower(trim($data['name']));
+        $name = strtolower(trim($data['name']));//makes sure $name variable is in lower case to make sure there is no duplicate ad standard name
 
         // Check Idempotency
-        $stmt = $conn->prepare("SELECT * FROM profiles WHERE name = ?");
+        $stmt = $conn->prepare("SELECT * FROM profiles WHERE name = ?");//idempotenmcy check so that incase there is an already exisint userit doeasnt duplicate
         $stmt->execute([$name]);
         $existing = $stmt->fetch();
 
@@ -57,6 +58,8 @@ switch ($method) {
         }
 
         // Fetch from External APIs
+
+        //Calls external API if any fails give 502 error bad gateway
         $gender = fetch_api_data("https://api.genderize.io?name=$name");
         $age = fetch_api_data("https://api.agify.io?name=$name");
         $country = fetch_api_data("https://api.nationalize.io?name=$name");
@@ -68,8 +71,8 @@ switch ($method) {
         }
 
         // Confidence Logic (Required for Stage 3)
-        $is_confident = ($gender['probability'] > 0.7 && $gender['count'] > 10);
-        $top_country = $country['country'][0] ?? ['country_id' => 'Unknown', 'probability' => 0];
+        $is_confident = ($gender['probability'] > 0.7 && $gender['count'] > 10);//confidence logic only trust data oif probability is over 70percent and enough sample
+        $top_country = $country['country'][0] ?? ['country_id' => 'Unknown', 'probability' => 0];//Extract top country or default to unknown
 
         $id = generate_uuid();
         $processed_at = gmdate("Y-m-d H:i:s"); // This is MySQL format (MySQL loves this)

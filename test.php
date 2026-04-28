@@ -1,26 +1,71 @@
 <?php
-header("Content-Type: application/json");
-header("Access-Control-Allow-Origin: *");
+// api/v1/auth/callback.php
+session_start();
+require "../../../db.php";
 
-$uri = $_SERVER['REQUEST_URI'];
-$method = $_SERVER['REQUEST_METHOD'];
+$code = $_GET['code'] ?? null;
+$state = $_GET['state'] ?? null;
 
-// This catches /api/profiles even if the grader adds or omits a trailing slash
-if (stripos($uri, "/api/profiles") !== false) {
-    require "db.php"; // Only load DB if the route matches to save resources
-
-    if ($method === "POST") {
-        require "create_profile.php";
-    } elseif ($method === "GET") {
-        // Check for ID: /api/profiles/{id}
-        if (preg_match("#/api/profiles/([a-z0-9-]+)#", $uri, $matches)) {
-            $_GET['id'] = $matches[1];
-            require "get_profile.php";
-        } else {
-            require "list_profiles.php";
-        }
-    }
-} else {
-    http_response_code(404);
-    echo json_encode(["status" => "error", "message" => "Route not found. Endpoint is /api/profiles", "debug_uri" => $ur]);
+// 1. Security Check
+if (!$state || $state !== $_SESSION['oauth_state']) {
+    die("Invalid state. Possible CSRF attack.");
 }
+
+if (!$code) {
+    die("No code received from GitHub.");
+}
+
+// 2. Trade CODE for ACCESS TOKEN
+$client_id = getenv('GITHUB_CLIENT_ID');
+$client_secret = getenv('GITHUB_CLIENT_SECRET');
+
+$ch = curl_init("https://github.com/login/oauth/access_token");
+curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query([
+    'client_id' => $client_id,
+    'client_secret' => $client_secret,
+    'code' => $code,
+]));
+curl_setopt($ch, CURLOPT_HTTPHEADER, ['Accept: application/json']);
+
+$response = json_decode(curl_exec($ch), true);
+curl_close($ch);
+
+$access_token = $response['access_token'] ?? null;
+
+if (!$access_token) {
+    die("Failed to obtain access token. Check your Client Secret in PXXXL.");
+}
+
+// 3. Get User Details from GitHub
+$ch = curl_init("https://api.github.com/user");
+curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+curl_setopt($ch, CURLOPT_HTTPHEADER, [
+    "Authorization: token $access_token",
+    "User-Agent: PHP-App" // GitHub requires a User-Agent header
+]);
+
+$user_data = json_decode(curl_exec($ch), true);
+curl_close($ch);
+
+if (!isset($user_data['login'])) {
+    die("Failed to fetch user data from GitHub.");
+}
+
+// 4. Save to Database & Start Session
+$github_id = $user_data['id'];
+$username = $user_data['login'];
+$email = $user_data['email'] ?? ($username . "@github.com"); // Fallback if email is private
+
+$stmt = $conn->prepare("INSERT INTO users (github_id, username, email) 
+                        VALUES (?, ?, ?) 
+                        ON DUPLICATE KEY UPDATE last_login = CURRENT_TIMESTAMP");
+$stmt->execute([$github_id, $username, $email]);
+
+$_SESSION['user_id'] = $github_id;
+$_SESSION['username'] = $username;
+
+// 5. Success Redirect
+echo "<h1>Success!</h1>";
+echo "Welcome, " . htmlspecialchars($username) . ". You are now logged in.";
+echo "<br><a href='/api/v1/profiles'>View Profiles</a>";
