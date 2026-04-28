@@ -72,7 +72,7 @@ switch ($method) {
         $top_country = $country['country'][0] ?? ['country_id' => 'Unknown', 'probability' => 0];
 
         $id = generate_uuid();
-        $processed_at = gmdate("Y-m-d\TH:i:s\Z");
+        $processed_at = gmdate("Y-m-d H:i:s"); // This is MySQL format (MySQL loves this)
 
         // Insert into Database (Matching the new Stage 3 schema)
         $stmt = $conn->prepare("INSERT INTO profiles (id, name, gender, probability, age, country_id, is_confident, sample_size, processed_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
