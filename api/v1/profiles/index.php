@@ -192,23 +192,16 @@ switch ($method) {
         }
         break;
     case 'DELETE':
-        // 1. ROUTING: Get the ID from the URL segments
+        // 1. ROUTING: Get the ID from the URL
         $url_path = parse_url($uri, PHP_URL_PATH);
         $url_segments = explode('/', trim($url_path, '/'));
         $id = end($url_segments);
 
-        // Check if ID is present and isn't just the word 'profiles'
         if ($id === 'profiles' || empty($id)) {
             http_response_code(400);
             echo json_encode(["status" => "error", "message" => "ID is required for deletion"]);
             exit;
         }
-        break;
-
-        /* * TODO: SECURITY CHECK (Stage 3 Requirement)
-         * We will add logic here later to check if the user is an 'admin'.
-         * If they aren't, we would return 403 Forbidden.
-         */
 
         // 2. Check if profile exists
         $stmt = $conn->prepare("SELECT id FROM profiles WHERE id = ?");
@@ -227,7 +220,7 @@ switch ($method) {
         // 4. Success Response
         http_response_code(204);
         exit;
-        break;
+    // No need for a break here because exit already stops the script
 
     default:
         http_response_code(405);
