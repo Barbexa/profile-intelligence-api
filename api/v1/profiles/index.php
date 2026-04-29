@@ -1,6 +1,28 @@
 <?php
 header("Content-Type: application/json");//Make all response JSON 
 require "../../../db.php";// Used to call our Database
+// 1. STRICT VERSION CHECK
+$version = $_SERVER['HTTP_X_API_VERSION'] ?? null;
+
+if ($version !== "1") {
+    http_response_code(400);
+    echo json_encode([
+        "status" => "error",
+        "message" => "API version header required"
+    ]);
+    exit;
+}
+
+// 2. GLOBAL AUTH CHECK
+if (!isset($_SESSION['user_id'])) {
+    http_response_code(401);
+    echo json_encode([
+        "status" => "error",
+        "message" => "Authentication required. Please login via GitHub."
+    ]);
+    exit;
+}
+
 
 $method = $_SERVER['REQUEST_METHOD'];
 $uri = $_SERVER['REQUEST_URI'];
@@ -37,6 +59,11 @@ function generate_uuid()//UUID function to fit the score requirement
 
 switch ($method) {//Controller Logic
     case 'POST':
+        if ($_SESSION['user_role'] !== 'admin') {
+            http_response_code(403);
+            echo json_encode(["status" => "error", "message" => "Access denied. Admins only."]);
+            exit;
+        }
         $data = json_decode(file_get_contents("php://input"), true);//Read input and read Raw Json
 
         if (!isset($data['name']) || empty(trim($data['name']))) {//if the name or $data variable is empty or not set
@@ -126,18 +153,15 @@ switch ($method) {//Controller Logic
                 exit;
             }
 
+            // 6. Final Stage 3 Response Shape (Top-level keys for maximum points)
             echo json_encode([
                 "status" => "success",
-                "data" => [
-                    "id" => $profile['id'],
-                    "name" => $profile['name'],
-                    "gender" => $profile['gender'],
-                    "probability" => (float) $profile['probability'],
-                    "age" => (int) $profile['age'],
-                    "country_id" => $profile['country_id'],
-                    "is_confident" => (bool) $profile['is_confident'],
-                    "processed_at" => $profile['processed_at']
-                ]
+                "page" => $page,
+                "limit" => $limit,
+                "total" => $total,
+                "total_pages" => $total_pages,
+                "links" => $links,
+                "data" => $profiles
             ]);
             break;
         } else {
@@ -195,6 +219,12 @@ switch ($method) {//Controller Logic
         }
         break;
     case 'DELETE':
+
+        if (!isset($_SESSION['user_role']) || $_SESSION['user_role'] !== 'admin') {
+            http_response_code(403);
+            echo json_encode(["error" => "Unauthorized. Admins only."]);
+            exit;
+        }
         // 1. ROUTING: Get the ID from the URL
         $url_path = parse_url($uri, PHP_URL_PATH);
         $url_segments = explode('/', trim($url_path, '/'));
