@@ -1,28 +1,75 @@
 <?php
-header("Content-Type: application/json");//Make all response JSON 
-require "../../../db.php";// Used to call our Database
+header("Content-Type: application/json");
+require "../../../db.php";
+session_start(); // Keep sessions for browser users
+
+// 0. Compatibility Helper (Add this for Bearer Token support)
+if (!function_exists('apache_request_headers')) {
+    function apache_request_headers()
+    {
+        $headers = [];
+        foreach ($_SERVER as $key => $value) {
+            if (substr($key, 0, 5) == 'HTTP_') {
+                $headers[str_replace(' ', '-', ucwords(str_replace('_', ' ', strtolower(substr($key, 5)))))] = $value;
+            }
+        }
+        return $headers;
+    }
+}
+
 // 1. STRICT VERSION CHECK
 $version = $_SERVER['HTTP_X_API_VERSION'] ?? null;
-
 if ($version !== "1") {
     http_response_code(400);
-    echo json_encode([
-        "status" => "error",
-        "message" => "API version header required"
-    ]);
+    echo json_encode(["status" => "error", "message" => "API version header required"]);
     exit;
 }
 
-// 2. GLOBAL AUTH CHECK
-if (!isset($_SESSION['user_id'])) {
+// 2. GLOBAL AUTH CHECK (Upgraded for Tokens + Sessions)
+$headers = apache_request_headers();
+$auth_header = $headers['Authorization'] ?? '';
+$token = str_replace('Bearer ', '', $auth_header);
+
+$user = null;
+
+// Try Token Auth (For Postman/CLI)
+if (!empty($token)) {
+    $stmt = $conn->prepare("
+        SELECT u.* FROM users u 
+        JOIN tokens t ON u.id = t.user_id 
+        WHERE t.token_value = ? 
+        AND t.token_type = 'access' 
+        AND t.expires_at > CURRENT_TIMESTAMP 
+        AND u.is_active = 1
+    ");
+    $stmt->execute([$token]);
+    $user = $stmt->fetch();
+
+    // If token is valid, sync it to the session roles
+    if ($user) {
+        $_SESSION['user_id'] = $user['id'];
+        $_SESSION['user_role'] = $user['role'];
+    }
+}
+
+// Try Session Auth (Fallback for Browser)
+if (!$user && isset($_SESSION['user_id'])) {
+    $stmt = $conn->prepare("SELECT * FROM users WHERE id = ? AND is_active = 1");
+    $stmt->execute([$_SESSION['user_id']]);
+    $user = $stmt->fetch();
+}
+
+// If both fail, block access
+if (!$user) {
     http_response_code(401);
     echo json_encode([
         "status" => "error",
-        "message" => "Authentication required. Please login via GitHub."
+        "message" => "Authentication required. Please provide a valid Bearer token or login via GitHub."
     ]);
     exit;
 }
 
+// --- REST OF YOUR CODE (POST, GET, DELETE) ---
 
 $method = $_SERVER['REQUEST_METHOD'];
 $uri = $_SERVER['REQUEST_URI'];
