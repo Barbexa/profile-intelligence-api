@@ -3,7 +3,13 @@
 session_start();
 
 $client_id = getenv('GITHUB_CLIENT_ID');
+
+if (!$client_id) {
+    die("Error: GITHUB_CLIENT_ID is not set in environment variables.");
+}
 // This must match EXACTLY what you put in GitHub Developer Settings
+
+
 $redirect_uri = "https://" . $_SERVER['HTTP_HOST'] . "/api/v1/auth/callback.php";
 
 // State is for security (prevents CSRF)

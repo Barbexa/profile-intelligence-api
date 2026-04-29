@@ -105,22 +105,22 @@ switch ($method) {//Controller Logic
         ]);
         break;
 
-    case 'GET':
+    case 'GET'://Get Profile Logic
         // Check if there's an ID in the URL (e.g., /api/v1/profiles/uuid-string)
         $url_path = parse_url($uri, PHP_URL_PATH);
-        $url_segments = explode('/', trim($url_path, '/'));
+        $url_segments = explode('/', trim($url_path, '/'));//adds / then url path and / to the end of our link
 
         // If the last segment is NOT 'profiles', it's an ID
-        $id = end($url_segments);
-        $is_single_profile = ($id !== 'profiles' && !empty($id));
+        $id = end($url_segments);//it saves whats found at the end of our link as id
+        $is_single_profile = ($id !== 'profiles' && !empty($id));//if the id is not profiles and not empty it means its a single profile and is saved to the variable
 
-        if ($is_single_profile) {
+        if ($is_single_profile) {//gets one profile from our database
             // --- GET SINGLE PROFILE LOGIC ---
-            $stmt = $conn->prepare("SELECT * FROM profiles WHERE id = ?");
+            $stmt = $conn->prepare("SELECT * FROM profiles WHERE id = ?");//gets the single profile from our database where id is given
             $stmt->execute([$id]);
-            $profile = $stmt->fetch();
+            $profile = $stmt->fetch();//saves fetched profile to$profile
 
-            if (!$profile) {
+            if (!$profile) {//gives an error os profile not found
                 http_response_code(404);
                 echo json_encode(["status" => "error", "message" => "Profile not found"]);
                 exit;
