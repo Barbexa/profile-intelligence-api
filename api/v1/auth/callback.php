@@ -83,6 +83,35 @@ $_SESSION['user_id'] = $user_id;
 $_SESSION['username'] = $username;
 $_SESSION['user_role'] = $role;
 
+// ... (After setting $_SESSION['user_role'] = $role;)
+
+// 1. Generate Secure Tokens
+$access_token = bin2hex(random_bytes(32));
+$refresh_token = bin2hex(random_bytes(32));
+
+// 2. Set Expiry Times (Strict Stage 3 Rules: 3 mins and 5 mins)
+$access_expiry = date('Y-m-d H:i:s', strtotime('+3 minutes'));
+$refresh_expiry = date('Y-m-d H:i:s', strtotime('+5 minutes'));
+
+// 3. Save to Database
+$token_stmt = $conn->prepare("INSERT INTO tokens (user_id, token_type, token_value, expires_at) VALUES (?, ?, ?, ?)");
+
+// Save Access Token
+$token_stmt->execute([$user_id, 'access', $access_token, $access_expiry]);
+// Save Refresh Token
+$token_stmt->execute([$user_id, 'refresh', $refresh_token, $refresh_expiry]);
+
+// 4. Update the Success Page to show the tokens (So you can copy them to Postman!)
+echo "<h1>Success!</h1>";
+echo "<p>Welcome, " . htmlspecialchars($username) . "</p>";
+echo "<div style='background: #f4f4f4; padding: 15px; border-radius: 8px;'>";
+echo "<strong>Your Access Token (Expires in 3 mins):</strong><br>";
+echo "<code style='word-break: break-all;'>$access_token</code><br><br>";
+echo "<strong>Your Refresh Token (Expires in 5 mins):</strong><br>";
+echo "<code>$refresh_token</code>";
+echo "</div>";
+echo "<p><a href='/api/v1/profiles'>Go to Profiles</a></p>";
+
 // 5. Success
 echo "<h1>Success!</h1>";
 echo "<img src='$avatar' width='100' style='border-radius:50%'><br>";
