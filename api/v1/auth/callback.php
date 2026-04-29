@@ -95,7 +95,17 @@ $refresh_expiry = date('Y-m-d H:i:s', strtotime('+5 minutes'));
 
 // 3. Save to Database
 $token_stmt = $conn->prepare("INSERT INTO tokens (user_id, token_type, token_value, expires_at) VALUES (?, ?, ?, ?)");
-
+// --- EMERGENCY TABLE CHECK ---
+$conn->exec("CREATE TABLE IF NOT EXISTS tokens (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id CHAR(36) NOT NULL,
+    token_type ENUM('access', 'refresh') NOT NULL,
+    token_value VARCHAR(255) UNIQUE NOT NULL,
+    expires_at TIMESTAMP NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+)");
+// --- END EMERGENCY CHECK ---
 // Save Access Token
 $token_stmt->execute([$user_id, 'access', $access_token, $access_expiry]);
 // Save Refresh Token
