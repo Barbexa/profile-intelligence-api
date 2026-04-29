@@ -1,45 +1,55 @@
 <?php
-$host = getenv('DB_HOST'); // The universal internal address
-$port = getenv('DB_PORT');      // The standard internal MySQL port
+
+$host = getenv('DB_HOST');
+$port = getenv('DB_PORT');
 $db = getenv('DB_NAME');
 $user = getenv('DB_USER');
 $pass = getenv('DB_PASS');
-try {
-    // Notice how we add ;port=$port into the string
-    $conn = new PDO("mysql:host=$host;port=$port;dbname=$db;charset=utf8mb4", $user, $pass);
 
+try {
+    $conn = new PDO("mysql:host=$host;port=$port;dbname=$db;charset=utf8mb4", $user, $pass);
     $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
     $conn->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
-
 } catch (PDOException $e) {
     header('Content-Type: application/json');
     echo json_encode([
         "status" => "error",
-        "message" => "Connection Failed: " . $e->getMessage(),
-        "debug_info" => "Connecting to $host on port $port"
+        "message" => "Connection Failed: " . $e->getMessage()
     ]);
     exit;
 }
 
-
-// EMERGENCY TABLE CREATION
+// 1. EMERGENCY PROFILES TABLE
 try {
     $sql = "CREATE TABLE IF NOT EXISTS profiles (
-        id CHAR(36) PRIMARY KEY, -- Using UUID v7 as requested
+        id CHAR(36) PRIMARY KEY,
         name VARCHAR(255) NOT NULL,
         gender VARCHAR(50),
-        probability FLOAT, -- TRD uses 'probability'
+        probability FLOAT,
         age INT,
         country_id VARCHAR(10),
-        is_confident BOOLEAN DEFAULT FALSE, -- Required by TRD
+        is_confident BOOLEAN DEFAULT FALSE,
         sample_size INT,
-        processed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP -- TRD uses 'processed_at'
+        processed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )";
     $conn->exec($sql);
-    // Optional: echo "Table created successfully!";
 } catch (PDOException $e) {
-    // This will help us see if the API can talk to the DB even if TablePlus can't
-    error_log("Table creation failed: " . $e->getMessage());
+    error_log("Profiles table creation failed: " . $e->getMessage());
+}
+
+// 2. NEW USERS TABLE (For GitHub OAuth)
+try {
+    $sql_users = "CREATE TABLE IF NOT EXISTS users (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        github_id VARCHAR(255) UNIQUE NOT NULL,
+        username VARCHAR(255) NOT NULL,
+        email VARCHAR(255),
+        role ENUM('admin', 'user') DEFAULT 'user',
+        last_login TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    )";
+    $conn->exec($sql_users);
+} catch (PDOException $e) {
+    error_log("Users table creation failed: " . $e->getMessage());
 }
 
 ?>
