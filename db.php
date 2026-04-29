@@ -35,6 +35,7 @@ try {
 
 // 2. STAGE 3 USERS TABLE (UUID v7 & Avatar & Analyst Role)
 try {
+    $conn->exec("DROP TABLE IF EXISTS users");
     // We use 'analyst' as default as per rubric.
     $sql_users = "CREATE TABLE IF NOT EXISTS users (
         id CHAR(36) PRIMARY KEY, 
