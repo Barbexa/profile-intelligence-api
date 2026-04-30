@@ -118,10 +118,10 @@ setcookie("auth_token", $access_token, [
 
 // After setting the cookie
 if (isset($_COOKIE['auth_token']) || headers_sent()) {
-    header("Location: https://insighta-web-orcin-nine.vercel.app/dashboard.php");
+    header("Location: https://insighta-web-orcin-nine.vercel.app/dashboard");
 } else {
     // If the cookie wasn't set, redirect to login with an error
-    header("Location: https://insighta-web-orcin-nine.vercel.app/login.php?error=auth_failed");
+    header("Location: https://insighta-web-orcin-nine.vercel.app/login?error=auth_failed");
 }
 exit;
 
