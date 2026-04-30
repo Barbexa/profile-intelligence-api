@@ -95,35 +95,34 @@ $refresh_expiry = date('Y-m-d H:i:s', strtotime('+5 minutes'));
 
 // 3. Save to Database
 $token_stmt = $conn->prepare("INSERT INTO tokens (user_id, token_type, token_value, expires_at) VALUES (?, ?, ?, ?)");
-// --- EMERGENCY TABLE CHECK ---
-$conn->exec("CREATE TABLE IF NOT EXISTS tokens (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    user_id CHAR(36) NOT NULL,
-    token_type ENUM('access', 'refresh') NOT NULL,
-    token_value VARCHAR(255) UNIQUE NOT NULL,
-    expires_at TIMESTAMP NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-)");
-// --- END EMERGENCY CHECK ---
+
 // Save Access Token
 $token_stmt->execute([$user_id, 'access', $access_token, $access_expiry]);
 // Save Refresh Token
 $token_stmt->execute([$user_id, 'refresh', $refresh_token, $refresh_expiry]);
 
-// 4. Update the Success Page to show the tokens (So you can copy them to Postman!)
-echo "<h1>Success!</h1>";
-echo "<p>Welcome, " . htmlspecialchars($username) . "</p>";
-echo "<div style='background: #f4f4f4; padding: 15px; border-radius: 8px;'>";
-echo "<strong>Your Access Token (Expires in 3 mins):</strong><br>";
-echo "<code style='word-break: break-all;'>$access_token</code><br><br>";
-echo "<strong>Your Refresh Token (Expires in 5 mins):</strong><br>";
-echo "<code>$refresh_token</code>";
-echo "</div>";
-echo "<p><a href='/api/v1/profiles'>Go to Profiles</a></p>";
+// ... (Your code remains the same up until you save the tokens to the DB) ...
 
-// 5. Success
-echo "<h1>Success!</h1>";
-echo "<img src='$avatar' width='100' style='border-radius:50%'><br>";
-echo "Welcome, " . htmlspecialchars($username) . " (Role: $role).";
-echo "<br><a href='/api/v1/profiles'>Go to Dashboard</a>";
+
+// --- NEW: THE BRIDGE ---
+
+// 1. Set the Secure HTTP-Only Cookie
+// We set this on the domain that the user is visiting (the Vercel URL)
+setcookie("auth_token", $access_token, [
+    'expires' => time() + (86400 * 7),
+    'path' => '/',
+    'secure' => true,      // Must be true for SameSite=None
+    'httponly' => true,
+    'samesite' => 'None'     // Crucial: This allows the cookie to be sent across different domains
+]);
+
+// After setting the cookie
+if (isset($_COOKIE['auth_token']) || headers_sent()) {
+    header("Location: https://insighta-web-orcin-nine.vercel.app/dashboard.php");
+} else {
+    // If the cookie wasn't set, redirect to login with an error
+    header("Location: https://insighta-web-orcin-nine.vercel.app/login.php?error=auth_failed");
+}
+exit;
+
+// 2. Redirect to Web Portal
