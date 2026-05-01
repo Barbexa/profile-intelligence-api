@@ -1,10 +1,9 @@
 <?php
-
 header("Content-Type: application/json");
 require "../../../db.php";
 session_start();
 
-// 0. Compatibility Helper for Headers
+// Compatibility Helper
 if (!function_exists('apache_request_headers')) {
     function apache_request_headers()
     {
@@ -19,14 +18,14 @@ if (!function_exists('apache_request_headers')) {
 }
 
 // 1. STRICT VERSION CHECK
-if (($_SERVER['HTTP_X_API_VERSION'] ?? null) !== "1") {
+$headers = apache_request_headers();
+if (($headers['X-Api-Version'] ?? null) !== "1") {
     http_response_code(400);
     echo json_encode(["status" => "error", "message" => "API version header required"]);
     exit;
 }
 
 // 2. GLOBAL AUTH CHECK
-$headers = apache_request_headers();
 $auth_header = $headers['Authorization'] ?? '';
 $token = str_replace('Bearer ', '', $auth_header);
 $user = null;
@@ -53,7 +52,7 @@ if (!$user) {
     exit;
 }
 
-// Helpers
+// HELPERS
 function fetch_api_data($url)
 {
     $ch = curl_init();
@@ -66,14 +65,37 @@ function fetch_api_data($url)
     return ($httpCode === 200) ? json_decode($response, true) : null;
 }
 
-function generate_uuid()
+function sendPaginatedResponse($stmt, $page, $limit, $conn, $url_path, $params = [], $is_search = false)
 {
-    return sprintf('%04x%04x-%04x-%04x-%04x-%04x%04x%04x', mt_rand(0, 0xffff), mt_rand(0, 0xffff), mt_rand(0, 0xffff), mt_rand(0, 0x0fff) | 0x4000, mt_rand(0, 0x3fff) | 0x8000, mt_rand(0, 0xffff), mt_rand(0, 0xffff), mt_rand(0, 0xffff));
+    // 1. Get total count
+    $sql_count = "SELECT COUNT(*) FROM profiles " . ($is_search ? "WHERE name LIKE ?" : "");
+    $total_stmt = $conn->prepare($sql_count);
+    $total_stmt->execute($is_search ? ["%$params[0]%"] : []);
+    $total = (int) $total_stmt->fetchColumn();
+    $total_pages = ceil($total / $limit);
+
+    // 2. Format output
+    echo json_encode([
+        "status" => "success",
+        "page" => $page,
+        "limit" => $limit,
+        "total" => $total,
+        "total_pages" => $total_pages,
+        "links" => [
+            "self" => "$url_path?page=$page&limit=$limit" . ($is_search ? "&q=" . urlencode($params[0]) : ""),
+            "next" => ($page < $total_pages) ? "$url_path?page=" . ($page + 1) . "&limit=$limit" . ($is_search ? "&q=" . urlencode($params[0]) : "") : null,
+            "prev" => ($page > 1) ? "$url_path?page=" . ($page - 1) . "&limit=$limit" . ($is_search ? "&q=" . urlencode($params[0]) : "") : null
+        ],
+        "data" => $stmt->fetchAll(PDO::FETCH_ASSOC)
+    ]);
 }
 
+// MAIN LOGIC
 $method = $_SERVER['REQUEST_METHOD'];
 $uri = $_SERVER['REQUEST_URI'];
 $url_path = parse_url($uri, PHP_URL_PATH);
+$url_segments = explode('/', trim($url_path, '/'));
+$last_segment = end($url_segments);
 
 switch ($method) {
     case 'POST':
@@ -90,78 +112,82 @@ switch ($method) {
             exit;
         }
 
-        $stmt = $conn->prepare("SELECT * FROM profiles WHERE name = ?");
-        $stmt->execute([$name]);
-        if ($existing = $stmt->fetch()) {
-            echo json_encode(["status" => "success", "data" => $existing]);
-            exit;
-        }
-
         $gender = fetch_api_data("https://api.genderize.io?name=$name");
         $age = fetch_api_data("https://api.agify.io?name=$name");
         $country = fetch_api_data("https://api.nationalize.io?name=$name");
 
-        if (!$gender || !$age || !$country) {
-            http_response_code(502);
-            echo json_encode(["status" => "error", "message" => "External API failure"]);
-            exit;
-        }
+        $top_country = $country['country'][0] ?? ['country_id' => 'Unknown', 'probability' => 0];
+        $id = uniqid();
 
-        $top_country = $country['country'][0] ?? ['country_id' => 'Unknown'];
-        $id = generate_uuid();
         $stmt = $conn->prepare("INSERT INTO profiles (id, name, gender, probability, age, country_id, processed_at) VALUES (?, ?, ?, ?, ?, ?, ?)");
         $stmt->execute([$id, $name, $gender['gender'], $gender['probability'], $age['age'], $top_country['country_id'], gmdate("Y-m-d H:i:s")]);
 
+        // FULL SCHEMA RETURNED
         http_response_code(201);
-        echo json_encode(["status" => "success", "data" => ["id" => $id, "name" => $name]]);
+        echo json_encode([
+            "status" => "success",
+            "data" => [
+                "id" => $id,
+                "name" => $name,
+                "gender" => $gender['gender'],
+                "gender_probability" => $gender['probability'],
+                "age" => $age['age'],
+                "age_group" => ($age['age'] < 18 ? 'minor' : 'adult'),
+                "country_id" => $top_country['country_id'],
+                "country_probability" => $top_country['probability'],
+                "created_at" => gmdate("Y-m-d H:i:s")
+            ]
+        ]);
         break;
 
     case 'GET':
-        // 1. EXPORT CHECK
+        // 1. Export
         if (strpos($url_path, '/export') !== false) {
-            header_remove("Content-Type");
             header('Content-Type: text/csv');
-            header('Content-Disposition: attachment; filename="profiles_' . time() . '.csv"');
+            header('Content-Disposition: attachment; filename="profiles.csv"');
             $output = fopen('php://output', 'w');
             fputcsv($output, ['id', 'name', 'gender', 'probability', 'age', 'country_id', 'processed_at']);
             $stmt = $conn->query("SELECT * FROM profiles ORDER BY processed_at DESC");
             while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
-                fputcsv($output, [$row['id'], $row['name'], $row['gender'], $row['probability'], $row['age'], $row['country_id'], $row['processed_at']]);
+                fputcsv($output, $row);
             }
             fclose($output);
             exit;
         }
 
-        // 2. SINGLE PROFILE vs LIST
-        $url_segments = explode('/', trim($url_path, '/'));
-        $idOrProfiles = end($url_segments);
+        $page = (int) ($_GET['page'] ?? 1);
+        $limit = (int) ($_GET['limit'] ?? 10);
+        $offset = ($page - 1) * $limit;
 
-        if ($idOrProfiles !== 'profiles' && !empty($idOrProfiles)) {
+        // 2. Search
+        if ($last_segment === 'search') {
+            $stmt = $conn->prepare("SELECT * FROM profiles WHERE name LIKE ? ORDER BY processed_at DESC LIMIT $limit OFFSET $offset");
+            $stmt->execute(["%" . ($_GET['q'] ?? '') . "%"]);
+            sendPaginatedResponse($stmt, $page, $limit, $conn, "/api/profiles/search", [$_GET['q'] ?? ''], true);
+        }
+        // 3. Single Profile (UUID)
+        elseif ($last_segment !== 'profiles' && !empty($last_segment)) {
             $stmt = $conn->prepare("SELECT * FROM profiles WHERE id = ?");
-            $stmt->execute([$idOrProfiles]);
-            if ($profile = $stmt->fetch()) {
-                echo json_encode(["status" => "success", "data" => $profile]);
+            $stmt->execute([$last_segment]);
+            if ($p = $stmt->fetch()) {
+                echo json_encode(["status" => "success", "data" => $p]);
             } else {
                 http_response_code(404);
                 echo json_encode(["status" => "error", "message" => "Not found"]);
             }
-        } else {
-            $page = (int) ($_GET['page'] ?? 1);
-            $limit = (int) ($_GET['limit'] ?? 10);
-            $offset = ($page - 1) * $limit;
-
+        }
+        // 4. List All
+        else {
             $stmt = $conn->prepare("SELECT * FROM profiles ORDER BY processed_at DESC LIMIT $limit OFFSET $offset");
             $stmt->execute();
-            echo json_encode(["status" => "success", "data" => $stmt->fetchAll(), "pagination" => ["page" => $page, "limit" => $limit]]);
+            sendPaginatedResponse($stmt, $page, $limit, $conn, "/api/profiles");
         }
         break;
 
     case 'DELETE':
-        $url_segments = explode('/', trim($url_path, '/'));
-        $id = end($url_segments);
-        if ($id !== 'profiles') {
+        if ($last_segment !== 'profiles') {
             $stmt = $conn->prepare("DELETE FROM profiles WHERE id = ?");
-            $stmt->execute([$id]);
+            $stmt->execute([$last_segment]);
             http_response_code(204);
         }
         break;

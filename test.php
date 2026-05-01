@@ -1,62 +1,154 @@
 <?php
-session_start();
+header("Content-Type: application/json");
 require "../../../db.php";
+session_start();
 
-$code = $_GET['code'] ?? null;
-$state = $_GET['state'] ?? null;
-
-if (!$state || $state !== $_SESSION['oauth_state']) {
-    die("Security check failed: State mismatch.");
+// 0. Compatibility Helper for Headers
+if (!function_exists('apache_request_headers')) {
+    function apache_request_headers()
+    {
+        $headers = [];
+        foreach ($_SERVER as $key => $value) {
+            if (substr($key, 0, 5) == 'HTTP_') {
+                $headers[str_replace(' ', '-', ucwords(str_replace('_', ' ', strtolower(substr($key, 5)))))] = $value;
+            }
+        }
+        return $headers;
+    }
 }
 
-if (!$code) {
-    die("No code received from GitHub.");
+// 1. STRICT VERSION CHECK
+$headers = apache_request_headers();
+if (($headers['X-Api-Version'] ?? null) !== "1") {
+    http_response_code(400);
+    echo json_encode(["status" => "error", "message" => "API version header required"]);
+    exit;
 }
 
-$client_id = getenv('GITHUB_CLIENT_ID');
-$client_secret = getenv('GITHUB_CLIENT_SECRET');
+// 2. GLOBAL AUTH CHECK (Keep your existing Auth Logic)
+$auth_header = $headers['Authorization'] ?? '';
+$token = str_replace('Bearer ', '', $auth_header);
+$user = null;
 
-// 1. TRADE CODE FOR ACCESS TOKEN
-$ch = curl_init("https://github.com/login/oauth/access_token");
-curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query([
-    'client_id' => $client_id,
-    'client_secret' => $client_secret,
-    'code' => $code,
-]));
-curl_setopt($ch, CURLOPT_HTTPHEADER, ['Accept: application/json']);
-$response = json_decode(curl_exec($ch), true);
-curl_close($ch);
-
-$token = $response['access_token'] ?? null;
-
-if (!$token) {
-    die("Failed to get Access Token. Check your Client Secret in PXXXL.");
+if (!empty($token)) {
+    $stmt = $conn->prepare("SELECT u.* FROM users u JOIN tokens t ON u.id = t.user_id WHERE t.token_value = ? AND t.token_type = 'access' AND t.expires_at > CURRENT_TIMESTAMP AND u.is_active = 1");
+    $stmt->execute([$token]);
+    $user = $stmt->fetch();
 }
 
-// 2. GET USER PROFILE FROM GITHUB
-$ch = curl_init("https://api.github.com/user");
-curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-curl_setopt($ch, CURLOPT_HTTPHEADER, [
-    "Authorization: Bearer $token",
-    "User-Agent: Profile-API-Habiba"
-]);
-$user = json_decode(curl_exec($ch), true);
-curl_close($ch);
-
-if (!isset($user['login'])) {
-    die("Failed to fetch GitHub user data.");
+if (!$user && isset($_SESSION['user_id'])) {
+    $stmt = $conn->prepare("SELECT * FROM users WHERE id = ? AND is_active = 1");
+    $stmt->execute([$_SESSION['user_id']]);
+    $user = $stmt->fetch();
 }
 
-// 3. START SESSION & REDIRECT
-$_SESSION['user'] = [
-    'username' => $user['login'],
-    'avatar' => $user['avatar_url'],
-    'id' => $user['id']
-];
+if (!$user) {
+    http_response_code(401);
+    echo json_encode(["status" => "error", "message" => "Authentication required."]);
+    exit;
+}
 
-// Success Message
-echo "<h1>Login Successful!</h1>";
-echo "Welcome, " . htmlspecialchars($user['login']) . "!";
-echo "<br><img src='" . $user['avatar_url'] . "' width='100'>";
-echo "<br><br><a href='/api/v1/profiles'>Go to Profiles Dashboard</a>";
+// HELPER FUNCTIONS
+function fetch_api_data($url)
+{
+    $ch = curl_init();
+    curl_setopt($ch, CURLOPT_URL, $url);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 5);
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+    return ($httpCode === 200) ? json_decode($response, true) : null;
+}
+
+function sendPaginatedResponse($stmt, $page, $limit, $conn, $url_path, $params = [])
+{
+    // 1. Get total count for pagination
+    $total_stmt = $conn->prepare("SELECT COUNT(*) FROM profiles " . ($params ? "WHERE name LIKE ?" : ""));
+    $total_stmt->execute($params ? ["%$params[0]%"] : []);
+    $total = (int) $total_stmt->fetchColumn();
+    $total_pages = ceil($total / $limit);
+
+    // 2. Format output
+    echo json_encode([
+        "status" => "success",
+        "page" => $page,
+        "limit" => $limit,
+        "total" => $total,
+        "total_pages" => $total_pages,
+        "links" => [
+            "self" => "$url_path?page=$page&limit=$limit",
+            "next" => ($page < $total_pages) ? "$url_path?page=" . ($page + 1) . "&limit=$limit" : null,
+            "prev" => ($page > 1) ? "$url_path?page=" . ($page - 1) . "&limit=$limit" : null
+        ],
+        "data" => $stmt->fetchAll(PDO::FETCH_ASSOC)
+    ]);
+}
+
+// MAIN LOGIC
+$method = $_SERVER['REQUEST_METHOD'];
+$uri = $_SERVER['REQUEST_URI'];
+$url_path = parse_url($uri, PHP_URL_PATH);
+
+switch ($method) {
+    case 'POST':
+        if ($_SESSION['user_role'] !== 'admin') {
+            http_response_code(403);
+            echo json_encode(["status" => "error", "message" => "Admins only."]);
+            exit;
+        }
+        $data = json_decode(file_get_contents("php://input"), true);
+        $name = strtolower(trim($data['name'] ?? ''));
+
+        // ... (Keep existing Name/Auth check logic here)
+
+        $gender = fetch_api_data("https://api.genderize.io?name=$name");
+        $age = fetch_api_data("https://api.agify.io?name=$name");
+        $country = fetch_api_data("https://api.nationalize.io?name=$name");
+
+        $top_country = $country['country'][0] ?? ['country_id' => 'Unknown', 'probability' => 0];
+        $id = uniqid();
+
+        $stmt = $conn->prepare("INSERT INTO profiles (id, name, gender, probability, age, country_id, processed_at) VALUES (?, ?, ?, ?, ?, ?, ?)");
+        $stmt->execute([$id, $name, $gender['gender'], $gender['probability'], $age['age'], $top_country['country_id'], gmdate("Y-m-d H:i:s")]);
+
+        // REQUIRED POST RESPONSE SCHEMA
+        http_response_code(201);
+        echo json_encode([
+            "status" => "success",
+            "data" => [
+                "id" => $id,
+                "name" => $name,
+                "gender" => $gender['gender'],
+                "gender_probability" => $gender['probability'],
+                "age" => $age['age'],
+                "age_group" => ($age['age'] < 18) ? 'minor' : 'adult',
+                "country_id" => $top_country['country_id'],
+                "country_probability" => $top_country['probability'],
+                "created_at" => gmdate("Y-m-d H:i:s")
+            ]
+        ]);
+        break;
+
+    case 'GET':
+        $page = (int) ($_GET['page'] ?? 1);
+        $limit = (int) ($_GET['limit'] ?? 10);
+        $offset = ($page - 1) * $limit;
+
+        // Search Route
+        if (isset($_GET['q'])) {
+            $stmt = $conn->prepare("SELECT * FROM profiles WHERE name LIKE ? ORDER BY processed_at DESC LIMIT $limit OFFSET $offset");
+            $stmt->execute(["%" . $_GET['q'] . "%"]);
+            sendPaginatedResponse($stmt, $page, $limit, $conn, "/api/profiles/search", [$_GET['q']]);
+        }
+        // List Route
+        else {
+            $stmt = $conn->prepare("SELECT * FROM profiles ORDER BY processed_at DESC LIMIT $limit OFFSET $offset");
+            $stmt->execute();
+            sendPaginatedResponse($stmt, $page, $limit, $conn, "/api/profiles");
+        }
+        break;
+
+    // ... (Keep existing DELETE case)
+}
+?>
